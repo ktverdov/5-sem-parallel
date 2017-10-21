@@ -7,18 +7,16 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define THRESHOLD 4
-
-void MergeSort(int *data, int* buffer, int left, int right, 
-			   int m, int level);
+void MergeSort(int *data, int* buffer, int left, int right, int m);
 void Merge(int *data, int *buffer, int l1, int r1, int l2, int r2, int start);
+
 int BinarySearch(int key, int *data,  int l, int r);
 int Comparator(const void * a, const void * b);
 
 void ReadInitialData(char *input, int *data, int n);
 void WriteSortedData(char *output, int *data_sorted, int n);
 void WriteStatistics(char *output_stat, double work_time_merge, 
-					 double work_time_qsort, int n, int m, int P);
+						double work_time_qsort, int n, int m, int P);
 
 
 int main(int argc, char **argv) {
@@ -33,11 +31,10 @@ int main(int argc, char **argv) {
 		printf("Wrong amount of arguments");
 		return 1;
 	}
-
+	
 	n = atoi(argv[1]);
 	m = atoi(argv[2]);
 	P = atoi(argv[3]);
-	
 	
 	int *buffer = (int*)malloc(n * sizeof(int));
 	int *array_merge = (int*)malloc(n * sizeof(int));
@@ -48,6 +45,7 @@ int main(int argc, char **argv) {
 		free(buffer);
 		free(array_merge);
 		free(array_qsort);
+		printf("Cannot allocate memory");
 		return -1;
 	}
 	
@@ -56,22 +54,23 @@ int main(int argc, char **argv) {
 	memcpy(array_merge, buffer, n * sizeof(int));
 	memcpy(array_qsort, buffer, n * sizeof(int));
 	
-	 
+	
 	assert(gettimeofday(&time_start_merge, NULL) == 0);
 	
 	omp_set_num_threads(P);
 	omp_set_nested(1);
 	
-	int level = 0;
-	#pragma omp parallel shared(array_merge, buffer) private(level)
+	#pragma omp parallel shared(array_merge, buffer)
 	#pragma omp single nowait 
-	MergeSort(array_merge, buffer, 0, n - 1, m, 0);
+	{
+		MergeSort(array_merge, buffer, 0, n - 1, m);
+	}
 	
 	assert(gettimeofday(&time_end_merge, NULL) == 0);
 
 	work_time_merge = 
 		((time_end_merge.tv_sec - time_start_merge.tv_sec) * 1000000u + 
-		  time_end_merge.tv_usec - time_start_merge.tv_usec) / 1.e6;
+			time_end_merge.tv_usec - time_start_merge.tv_usec) / 1.e6;
 	
 	
 	assert(gettimeofday(&time_start_qsort, NULL) == 0);
@@ -82,7 +81,7 @@ int main(int argc, char **argv) {
 
 	work_time_qsort = 
 		((time_end_qsort.tv_sec - time_start_qsort.tv_sec) * 1000000u + 
-		  time_end_qsort.tv_usec - time_start_qsort.tv_usec) / 1.e6;
+			time_end_qsort.tv_usec - time_start_qsort.tv_usec) / 1.e6;
 	
 		  
 	free(buffer);
@@ -98,30 +97,24 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void MergeSort(int *data, int *buffer, int left, int right, 
-			   int m, int level) {
-	level++;
-	
-    if (right - left < m) {
+void MergeSort(int *data, int *buffer, int left, int right, int m) {
+	if (right - left < m) {
 		qsort(data + left, right - left  + 1, sizeof(int), Comparator);
 		return;
 	} 
 	
 	int mid = (left + right) / 2;
 	
-	if (level < THRESHOLD) {
-		#pragma omp task
-		MergeSort(data, buffer, left, mid, m, level);
-		#pragma omp task
-		MergeSort(data, buffer, mid + 1, right, m, level);
-		#pragma omp taskwait
-	} else {
-		MergeSort(data, buffer, left, mid, m, level);
-		MergeSort(data, buffer, mid + 1, right, m, level);
-	}
+	#pragma omp task
+	MergeSort(data, buffer, left, mid, m);
+
+	#pragma omp task
+	MergeSort(data, buffer, mid + 1, right, m);
 	
-    int first_merge_mid = (left + mid) / 2;
-    int second_merge_mid = BinarySearch(data[first_merge_mid], 
+	#pragma omp taskwait
+	
+	int first_merge_mid = (left + mid) / 2;
+	int second_merge_mid = BinarySearch(data[first_merge_mid], 
 										data, mid + 1, right);
     
     
@@ -129,7 +122,7 @@ void MergeSort(int *data, int *buffer, int left, int right,
 	{
 		int start = left;
 		Merge(data, buffer, left, first_merge_mid, 
-							mid + 1, second_merge_mid - 1, start);
+									mid + 1, second_merge_mid - 1, start);
 	}
 							
 	#pragma omp task
@@ -180,6 +173,11 @@ int Comparator(const void * a, const void * b) {
 
 void ReadInitialData(char *input, int *data, int n) {
 	FILE *data_file = fopen(input, "r");
+	if (data_file == NULL) {
+		printf("Cannot open data file\n");
+		exit(1);
+	}
+	
 	for (int i = 0; i < n; i++) {
 		fscanf(data_file, "%d", &data[i]);
 	}
@@ -188,15 +186,24 @@ void ReadInitialData(char *input, int *data, int n) {
 
 void WriteSortedData(char *output, int *data_sorted, int n) {
 	FILE *data_file = fopen(output, "w");
+	if (data_file == NULL) {
+		printf("Cannot open file to write sorted data\n");
+		exit(1);
+	}
+	
 	for (int i = 0; i < n; i++)
 		fprintf(data_file, "%d ", data_sorted[i]);
 	fclose(data_file);	
 }
 
 void WriteStatistics(char *output_stat, double work_time_merge, 
-					 double work_time_qsort, int n, int m, int P) {
+						double work_time_qsort, int n, int m, int P) {
 	FILE *stats_file = fopen(output_stat, "w");
-	fprintf(stats_file, "%.1f %.1f %d %d %d\n",
+	if (stats_file == NULL) {
+		printf("Cannot open file to write statistics\n");
+		exit(1);
+	}
+	fprintf(stats_file, "%.3f %.3f %d %d %d\n",
 			work_time_merge, work_time_qsort, n, m, P);
 	fclose(stats_file); 
 }
