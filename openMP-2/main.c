@@ -13,9 +13,10 @@ void Merge(int *data, int *buffer, int l1, int r1, int l2, int r2, int start);
 int BinarySearch(int key, int *data,  int l, int r);
 int Comparator(const void * a, const void * b);
 
-void ReadInitialData(char *input, int *data, int n);
-void WriteSortedData(char *output, int *data_sorted, int n);
-void WriteStatistics(char *output_stat, double work_time_merge, 
+void ReadInitialData(const char *input, int *data, int n);
+void WriteSortedData(const char *output, int *data_sorted, int n, 
+						const char *mode);
+void WriteStatistics(const char *output_stat, double work_time_merge, 
 						double work_time_qsort, int n, int m, int P);
 
 
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	
-	ReadInitialData("initial_data.txt", buffer, n);
+	ReadInitialData("data.txt", buffer, n);
 	
 	memcpy(array_merge, buffer, n * sizeof(int));
 	memcpy(array_qsort, buffer, n * sizeof(int));
@@ -86,10 +87,10 @@ int main(int argc, char **argv) {
 		  
 	free(buffer);
 	
-	WriteSortedData("data_merge.txt", array_merge, n);
+	WriteSortedData("data.txt", array_merge, n, "a");
 	free(array_merge);
 	
-	WriteSortedData("data_qsort.txt", array_qsort, n);
+	WriteSortedData("data_qsort.txt", array_qsort, n, "w");
 	free(array_qsort);
 
 	WriteStatistics("stats.txt", work_time_merge, work_time_qsort, n, m, P);
@@ -138,16 +139,16 @@ void MergeSort(int *data, int *buffer, int left, int right, int m) {
 }
 
 void Merge(int *data, int *buffer, int l1, int r1, int l2, int r2, int start) {
-    int n = r1 + r2 - l1 - l2 + 2;
+	int n = r1 + r2 - l1 - l2 + 2;
     
-    for (int i = 0; i < n; i++)
-        if ((l1 <= r1) && (l2 > r2 || data[l1] <= data[l2])) {
-            buffer[i + start] = data[l1];
-            l1++;
-        } else {
-            buffer[i + start] = data[l2];
-            l2++;
-        }
+	for (int i = 0; i < n; i++)
+		if ((l1 <= r1) && (l2 > r2 || data[l1] <= data[l2])) {
+			buffer[i + start] = data[l1];
+			l1++;
+		} else {
+			buffer[i + start] = data[l2];
+			l2++;
+		}
 }
 
 int BinarySearch(int key, int *data,  int l, int r) {	
@@ -171,7 +172,7 @@ int Comparator(const void * a, const void * b) {
    return ( *(int *)a - *(int *)b );
 }
 
-void ReadInitialData(char *input, int *data, int n) {
+void ReadInitialData(const char *input, int *data, int n) {
 	FILE *data_file = fopen(input, "r");
 	if (data_file == NULL) {
 		printf("Cannot open data file\n");
@@ -184,8 +185,9 @@ void ReadInitialData(char *input, int *data, int n) {
 	fclose(data_file);
 }
 
-void WriteSortedData(char *output, int *data_sorted, int n) {
-	FILE *data_file = fopen(output, "w");
+void WriteSortedData(const char *output, int *data_sorted, int n, 
+						const char *mode) {
+	FILE *data_file = fopen(output, mode);
 	if (data_file == NULL) {
 		printf("Cannot open file to write sorted data\n");
 		exit(1);
@@ -193,10 +195,12 @@ void WriteSortedData(char *output, int *data_sorted, int n) {
 	
 	for (int i = 0; i < n; i++)
 		fprintf(data_file, "%d ", data_sorted[i]);
+	fprintf(data_file, "\n\n");
+	
 	fclose(data_file);	
 }
 
-void WriteStatistics(char *output_stat, double work_time_merge, 
+void WriteStatistics(const char *output_stat, double work_time_merge, 
 						double work_time_qsort, int n, int m, int P) {
 	FILE *stats_file = fopen(output_stat, "w");
 	if (stats_file == NULL) {
